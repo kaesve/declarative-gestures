@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<title>Declarative gestures -- demo page</title>
+<style>
+  body,html {
+    margin: 0; padding: 0;
+    font: 20px/1.5 sans-serif;
+    text-shadow: 0 1px #fff, 0 -1px #fff, 1px 0 #fff, -1px 0 #fff;
+  }
+
+
+  .object {
+    display: table;
+    border-radius: 5px;
+    position: absolute;
+    width: 100px; height: 100px;
+  }
+  .object:after {
+    content: attr(id);
+    display: table-cell;
+    vertical-align: middle;
+    text-align: center;
+  }
+
+  
+
+  #obj-1 { background: rgba(255, 100, 100, .75); top: 10px; left: 10px; }
+  #obj-2 { background: rgba(100, 255, 100, .75); top: 10px; left: 120px; }
+  #obj-3 { background: rgba(100, 100, 255, .75); top: 120px; left: 10px;}
+</style>
+
+<div class="object" id="obj-1"></div>
+<div class="object" id="obj-2"></div>
+<div class="object" id="obj-3"></div>
