@@ -7,7 +7,6 @@
     text-shadow: 0 1px #fff, 0 -1px #fff, 1px 0 #fff, -1px 0 #fff;
   }
 
-
   .object {
     display: table;
     border-radius: 5px;
@@ -31,3 +30,82 @@
 <div class="object" id="obj-1"></div>
 <div class="object" id="obj-2"></div>
 <div class="object" id="obj-3"></div>
+
+<script>
+
+var testGesture = "d1/obj-(2|3)/m1*u1";
+var actionPattern = /([dmu])(\d+)(?:\/([^\/]*)\/)?/g;
+var modifierPattern = /(\+|\||\*|(?:\{\d+(?:, *\d+)\}))/g; // matches +, *, |, {12} and {12, 24}
+
+function parseModifier(data) {
+  var modifier;
+  switch(data.string[data.pos]) {
+    case '+': modifier = { min: 1, max: Infinity }; break;
+    case '*': modifier = { min: 0, max: Infinity }; break;
+    case '?': modifier = { min: 0, max: 1 }; break;
+    case '{': 
+      // not sure if this is efficient. Depends on substr implementation
+      var delimData = /^\{(\d+),?(\d+)?\}/.exec(modifier.string.substr(data.pos));
+      data.pos += delimData[0].length - 1; // -1 to account for the data.pos++ at the end
+      modifier = {
+        min: +delimData[1],
+        max: +delimData[2] || +delimData[1]
+      };
+    break;
+    default: return;
+  }
+  data.pos++;
+  return modifier;
+}
+function parseNode(data) {
+  var options = [];
+  data.pos--;
+  do {
+    data.pos++;
+    options.push(parseGroupOrAction(data))
+  } while (data.string[data.pos] == '|');
+
+  return options.length <= 1 ? options[0] : {
+    type: 'options',
+    options: options,
+    modifier: parseModifier(data)
+  };
+}
+function parseGroupOrAction(data) {
+  var c = data.string[data.pos];
+  if (c == undefined) return;
+
+  if (c == '(') return parseGroup(data);
+  else return parseAction(data);
+}
+function parseGroup(data) {
+  var children = []
+  data.pos++; // skip '(' 
+  while (data.string[data.pos] != ')') children.push(parseNode(data));
+  data.pos++; // skip ')'
+  return {
+    type: 'group',
+    children: children,
+    modifier: parseModifier(data)
+  };
+}
+function parseAction(data) {
+  actionPattern.lastIndex = data.pos;
+  var actionMatch = actionPattern.exec(data.string);
+  data.pos = actionPattern.lastIndex;
+  return {
+    type: 'action',
+    action: actionMatch[1],
+    id: actionMatch[2],
+    target: actionMatch[3],
+    modifier: parseModifier(data)
+  };
+}
+function parseGestures(gestureString) {
+  var tokens = [];
+  var data = { string: gestureString, pos: 0 };
+  while (data.pos < data.string.length) tokens.push(parseNode(data));
+  return tokens;
+}
+
+</script>
