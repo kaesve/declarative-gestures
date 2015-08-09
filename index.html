@@ -47,7 +47,7 @@ function parseModifier(data) {
     case '?': modifier = { min: 0, max: 1 }; break;
     case '{': 
       // not sure if this is efficient. Depends on substr implementation
-      var delimData = /^\{(\d+),?(\d+)?\}/.exec(modifier.string.substr(data.pos));
+      var delimData = /^\{(\d+),?(\d+)?\}/.exec(data.string.substr(data.pos));
       data.pos += delimData[0].length - 1; // -1 to account for the data.pos++ at the end
       modifier = {
         min: +delimData[1],
@@ -84,19 +84,6 @@ function parseGroupOrAction(data) {
   if (c == '(') return parseGroup(data);
   else return parseAction(data);
 }
-function parseGroup(data) {
-  var children = []
-  data.pos++; // skip '(' 
-  while (data.string[data.pos] != ')') children.push(parseNode(data));
-  data.pos++; // skip ')'
-  var modifier = parseModifier(data);
-  return {
-    type: 'group',
-    children: children,
-    modifier: modifier,
-    string: '(' + children.map(function(c) { return c.string; }).join('') + ')' + modifierAsString(modifier)
-  };
-}
 function parseAction(data) {
   actionPattern.lastIndex = data.pos;
   var actionMatch = actionPattern.exec(data.string);
@@ -111,11 +98,98 @@ function parseAction(data) {
     string: actionMatch[0] + modifierAsString(modifier)
   };
 }
+function parseGroup(data) {
+  var children = []
+  data.pos++; // skip '(' 
+  while (data.string[data.pos] != ')') children.push(parseNode(data));
+  data.pos++; // skip ')'
+  var modifier = parseModifier(data);
+  return {
+    type: 'group',
+    children: children,
+    modifier: modifier,
+    string: '(' + children.map(function(c) { return c.string; }).join('') + ')' + modifierAsString(modifier)
+  };
+}
 function parseGestures(gestureString) {
   var tokens = [];
   var data = { string: gestureString, pos: 0 };
   while (data.pos < data.string.length) tokens.push(parseNode(data));
   return tokens;
+}
+
+function stateMachineForAction(entryState, endState, action) {
+  var current = entryState;
+  var id = action.action + action.id;
+  for (var repeats = 0; repeats < action.modifier.min; ++repeats) {
+    current.transitions[id] = current.transitions[id] || { };
+    current = current.transitions[id][action.target] = { transitions: { '': [ ] } }; 
+  }
+
+  current.transitions[''].push(endState);
+  if (action.modifier.max == Infinity) {
+    current.transitions[id] = current.transitions[id] || { };
+    current.transitions[id][action.target] = current; 
+  } else {
+    while (repeats++ < action.modifier.max) {
+      current.transitions[id] = current.transitions[id] || { };
+      current = current.transitions[id][action.target] = { transitions: { '': [ endState ] } };
+    }
+  }
+}
+function stateMachineForGroup(entryState, endState, group) {
+  var current = entryState;
+  for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
+    current = group.children.reduce(function(state, e) { 
+      var n = { transitions: { '' : [ ] } };
+      stateMachineForExpression(state, n, e);
+      return n;
+    }, current);
+  }
+  current.transitions[''].push(endState);
+
+  if (group.modifier.max == Infinity) {
+    current = group.children.reduce(function(state, e) { 
+      var n = { transitions: { '' : [ ] } };
+      stateMachineForExpression(state, n, e);
+      return n;
+    }, current);
+    current.transitions[''].push(endState);
+    current.transitions[''].push(current);
+  } else {
+    while(repeats++ < group.modifier.max) { 
+      current = group.children.reduce(function(state, e) { 
+        var n = { transitions: { '' : [ ] } };
+        stateMachineForExpression(state, n, e);
+        return n;
+      }, current);
+      current.transitions[''].push(endState);
+    }
+  }
+}
+function stateMachineForOptions(entryState, endState, options) {
+  options.options.forEach(stateMachineForExpression.bind(this, entryState, endState));
+}
+function stateMachineForExpression(entryState, endState, e) {
+  var f;
+  switch(e.type) {
+    case 'action':  f = stateMachineForAction;  break;
+    case 'group':   f = stateMachineForGroup;   break;
+    case 'options': f = stateMachineForOptions; break;
+  }
+  f(entryState, endState, e);
+}
+function computeStateMachine(gestureTokens) {
+  var gestureGroup = {
+    type: 'group',
+    children: gestureTokens,
+    modifier: { min: 1, max: 1 }
+  };
+
+  var initialState = { transitions: { '': [] } };
+  var endState = { thisIsTheEND: true };
+  stateMachineForGroup(initialState, endState, gestureGroup);
+  return initialState;
 }
 
 </script>
