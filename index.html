@@ -106,9 +106,9 @@ function parseAction(data) {
     type: 'action',
     action: actionMatch[1],
     id: actionMatch[2],
-    target: actionMatch[3],
+    target: actionMatch[3] || '/.*/',
     modifier: modifier,
-    string: actionMatch[0] + modifierAsString(modifier) 
+    string: actionMatch[0] + modifierAsString(modifier)
   };
 }
 function parseGestures(gestureString) {
