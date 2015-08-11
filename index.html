@@ -145,7 +145,7 @@ function parseModifier(data) {
 /// Compiling a FSA
 ///
 
-function stateMachineForAction(entryState, endState, action) {
+function stateMachineForAction(fsm, entryState, endState, action) {
   var current = entryState;
   var id = action.action + action.id;
   for (var repeats = 0; repeats < action.modifier.min; ++repeats) {
@@ -164,12 +164,12 @@ function stateMachineForAction(entryState, endState, action) {
     }
   }
 }
-function stateMachineForGroup(entryState, endState, group) {
+function stateMachineForGroup(fsm, entryState, endState, group) {
   var current = entryState;
   for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
     current = group.children.reduce(function(state, e) { 
       var n = { transitions: { '' : [ ] } };
-      stateMachineForExpression(state, n, e);
+      stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
   }
@@ -178,7 +178,7 @@ function stateMachineForGroup(entryState, endState, group) {
   if (group.modifier.max == Infinity) {
     current = group.children.reduce(function(state, e) { 
       var n = { transitions: { '' : [ ] } };
-      stateMachineForExpression(state, n, e);
+      stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
     current.transitions[''].push(endState);
@@ -187,24 +187,24 @@ function stateMachineForGroup(entryState, endState, group) {
     while(repeats++ < group.modifier.max) { 
       current = group.children.reduce(function(state, e) { 
         var n = { transitions: { '' : [ ] } };
-        stateMachineForExpression(state, n, e);
+        stateMachineForExpression(fsm, state, n, e);
         return n;
       }, current);
       current.transitions[''].push(endState);
     }
   }
 }
-function stateMachineForOptions(entryState, endState, options) {
-  options.options.forEach(stateMachineForExpression.bind(this, entryState, endState));
+function stateMachineForOptions(fsm, entryState, endState, options) {
+  options.options.forEach(stateMachineForExpression.bind(this, fsm, entryState, endState));
 }
-function stateMachineForExpression(entryState, endState, e) {
+function stateMachineForExpression(fsm, entryState, endState, e) {
   var f;
   switch(e.type) {
     case 'action':  f = stateMachineForAction;  break;
     case 'group':   f = stateMachineForGroup;   break;
     case 'options': f = stateMachineForOptions; break;
   }
-  f(entryState, endState, e);
+  f(fsm, entryState, endState, e);
 }
 function computeStateMachine(gestureTokens) {
   var gestureGroup = {
@@ -213,10 +213,13 @@ function computeStateMachine(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
-  var initialState = { transitions: { '': [] } };
-  var endState = { thisIsTheEND: true };
-  stateMachineForGroup(initialState, endState, gestureGroup);
-  return initialState;
+  var stateMachine = {
+    initialState: { transitions: { '': [] } },
+    endState: { transitions: { '': [] } },
+    ast: gestureTokens
+  };
+  stateMachineForGroup(stateMachine, stateMachine.initialState, stateMachine.endState, gestureGroup);
+  return stateMachine;
 }
 
 ///
@@ -247,7 +250,7 @@ function transition(state, symbol) {
 
 var gestureString = 'd1d1d1';
 var parsedGesture = parseGestures(gestureString);
-var s_0 = computeStateMachine(parsedGesture);
+var s_0 = computeStateMachine(parsedGesture).initialState;
 var s_1 = transition(s_0, { actionId: 'd1', targetId: 'foo' });
 var s_2 = transition(s_1, { actionId: 'd1', targetId: 'foo' });
 var s_3 = transition(s_2, { actionId: 'd1', targetId: 'foo' });
