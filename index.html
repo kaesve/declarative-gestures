@@ -33,6 +33,10 @@
 
 <script>
 
+///
+/// Parsing
+///
+
 function formatModifier(modifier) { return '{' + modifier.min + ',' + modifier.max + '}'; }
 
 function parseGestures(gestureString) {
@@ -73,7 +77,7 @@ function parseGroupOrAction(data) {
   var c = data.string[data.pos];
   if (c == undefined) return; // reached end of string
 
-  return c == '(' ? return parseGroup(data) : parseAction(data);
+  return c == '(' ? parseGroup(data) : parseAction(data);
 }
 /**
 * Parse an action at data.pos in data.string. An action has three components and looks like 
@@ -98,7 +102,7 @@ function parseAction(data) {
     type: 'action',
     action: actionMatch[1],
     id: actionMatch[2],
-    target: actionMatch[3] || '/.*/',
+    target: actionMatch[3] || '.*',
     modifier: modifier,
     string: actionMatch[0] + formatModifier(modifier)
   };
@@ -137,7 +141,9 @@ function parseModifier(data) {
   return modifier;
 }
 
-
+///
+/// Compiling a FSA
+///
 
 function stateMachineForAction(entryState, endState, action) {
   var current = entryState;
@@ -213,4 +219,37 @@ function computeStateMachine(gestureTokens) {
   return initialState;
 }
 
+///
+/// Run FSA
+///
+
+function transition(state, symbol) {
+  var resultState = { transitions: { '': [] } };
+  var matchTable = state.transitions[symbol.actionId];
+  if (matchTable) {
+    for (var regexpDef in matchTable) {
+      if (new RegExp(regexpDef).test(symbol.targetId)) {
+        resultState = matchTable[regexpDef];
+      }
+    }
+  }
+
+  resultState.transitions[''] = state.transitions[''].reduce(function(compositeStates, s) {
+    return compositeStates.concat(transition(s, symbol));
+  }, resultState.transitions['']);
+
+  return resultState;
+}
+
+///
+/// Test code
+///
+
+var gestureString = 'd1d1d1';
+var parsedGesture = parseGestures(gestureString);
+var s_0 = computeStateMachine(parsedGesture);
+var s_1 = transition(s_0, { actionId: 'd1', targetId: 'foo' });
+var s_2 = transition(s_1, { actionId: 'd1', targetId: 'foo' });
+var s_3 = transition(s_2, { actionId: 'd1', targetId: 'foo' });
+var s_4 = transition(s_3, { actionId: 'd1', targetId: 'foo' });
 </script>
