@@ -165,6 +165,9 @@ function stateMachineForAction(fsm, entryState, endState, action) {
   }
 }
 function stateMachineForGroup(fsm, entryState, endState, group) {
+  endState.endsGroup = group.name || fsm.groupCount;
+  fsm.groupCount++;
+
   var current = entryState;
   for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
     current = group.children.reduce(function(state, e) { 
@@ -213,12 +216,41 @@ function computeStateMachine(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
+  var initialState = { transitions: { '': [] } };
+  var endState = { transitions: { '': [] } };
   var stateMachine = {
-    initialState: { transitions: { '': [] } },
-    endState: { transitions: { '': [] } },
+    groupCount: 0,
     ast: gestureTokens
   };
-  stateMachineForGroup(stateMachine, stateMachine.initialState, stateMachine.endState, gestureGroup);
+  stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
+  function prune(state) {
+    var pruned = { transitions: { } };
+    if (state.endsGroup !== undefined) pruned.endsGroup = state.endsGroup;
+
+    for (var i in state.transitions) {
+      if(!i) continue;
+
+      pruned.transitions[i] = {};
+      for (var t in state.transitions[i]) pruned.transitions[i][t] = [ prune(state.transitions[i][t]) ];
+    }
+
+    return state.transitions[''].reduce(function(s, c) {
+      var _c = prune(c);
+      if (_c.endsGroup !== undefined) s.endsGroup = _c.endsGroup;
+
+      for (var id in _c.transitions) {
+        if (!id) continue;
+
+        s.transitions[id] = s.transitions[id] || { };
+        for (var target in _c.transitions[id]) {
+          s.transitions[id][target] = s.transitions[id][target] || [ ];
+          s.transitions[id][target] = s.transitions[id][target].concat(_c.transitions[id][target]);
+        }
+      }
+      return s;
+    }, pruned);
+  }
+  stateMachine.initialState = [ prune(initialState) ];
   return stateMachine;
 }
 
@@ -226,33 +258,28 @@ function computeStateMachine(gestureTokens) {
 /// Run FSA
 ///
 
-function transition(state, symbol) {
-  var resultState = { transitions: { '': [] } };
-  var matchTable = state.transitions[symbol.actionId];
-  if (matchTable) {
-    for (var regexpDef in matchTable) {
-      if (new RegExp(regexpDef).test(symbol.targetId)) {
-        resultState = matchTable[regexpDef];
+function transition(stateSet, symbol) {
+  return stateSet.reduce(function(resultStates, state) {
+    var matchTable = state.transitions[symbol.actionId];
+    if (matchTable) {
+      for (var regexpDef in matchTable) {
+        if (new RegExp(regexpDef).test(symbol.targetId)) {
+          resultStates = resultStates.concat(matchTable[regexpDef]);
+        }
       }
     }
-  }
-
-  resultState.transitions[''] = state.transitions[''].reduce(function(compositeStates, s) {
-    return compositeStates.concat(transition(s, symbol));
-  }, resultState.transitions['']);
-
-  return resultState;
+    return resultStates;
+  }, [ ]);
 }
 
 ///
 /// Test code
 ///
 
-var gestureString = 'd1d1d1';
+var gestureString = 'd1d1';
 var parsedGesture = parseGestures(gestureString);
-var s_0 = computeStateMachine(parsedGesture).initialState;
+var fsm = computeStateMachine(parsedGesture);
+var s_0 = fsm.initialState;
 var s_1 = transition(s_0, { actionId: 'd1', targetId: 'foo' });
 var s_2 = transition(s_1, { actionId: 'd1', targetId: 'foo' });
-var s_3 = transition(s_2, { actionId: 'd1', targetId: 'foo' });
-var s_4 = transition(s_3, { actionId: 'd1', targetId: 'foo' });
 </script>
