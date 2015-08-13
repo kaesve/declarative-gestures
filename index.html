@@ -33,6 +33,20 @@
 
 <script>
 
+
+/// 
+/// Helpers
+/// 
+
+function removeAll(arr, obj) { 
+  for (var i = 0; i < arr.length; ++i) 
+    if (arr[i] == obj) {
+      arr[i] = arr[arr.length - 1];
+      arr.length--; 
+    }
+}
+
+
 ///
 /// Parsing
 ///
@@ -141,8 +155,9 @@ function parseModifier(data) {
   return modifier;
 }
 
+
 ///
-/// Compiling a FSA
+/// Compiling a FSM
 ///
 
 function stateMachineForAction(fsm, entryState, endState, action) {
@@ -223,6 +238,7 @@ function computeStateMachine(gestureTokens) {
     ast: gestureTokens
   };
   stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
+
   function prune(state) {
     var pruned = { transitions: { } };
     if (state.endsGroup !== undefined) pruned.endsGroup = state.endsGroup;
@@ -254,8 +270,9 @@ function computeStateMachine(gestureTokens) {
   return stateMachine;
 }
 
+
 ///
-/// Run FSA
+/// Run FSM
 ///
 
 function transition(stateSet, symbol) {
@@ -272,14 +289,84 @@ function transition(stateSet, symbol) {
   }, [ ]);
 }
 
+
+///
+/// FSM management
+///
+
+var activeMachines = [];
+var runningInstances = [];
+function activateMachinesByTouch(type, touch) {
+  var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
+  activeMachines.forEach(function(fsm) {
+    var nextStateSet = transition(fsm.initialState, symbol);
+    if (nextStateSet.length) {
+      var idMap = {};
+      idMap[touch.id] = '1';
+      runningInstances.push({
+        fsm: fsm,
+        currentStateSet: nextStateSet,
+        localTouchIdsByGlobalId: idMap
+      });
+      console.log('new instance of FSM activated', fsm, type);
+    }
+
+  });
+}
+function updateRunningMachines(type, touch) {
+  runningInstances.forEach(function(instance) {
+    var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
+    instance.currentStateSet = transition(instance.currentStateSet, symbol);
+
+    if (instance.currentStateSet.length == 0) {
+      console.log('instance of FSM reached end state', instance);
+      removeAll(runningInstances, instance);
+    }
+
+    var endedGroups = [];
+    for (var i in instance.currentStateSet) 
+      if (instance.currentStateSet[i].endsGroup !== undefined) 
+        endedGroups.push(instance.currentStateSet[i].endsGroup);
+
+    if (endedGroups.length) console.log('groups have ended: ', endedGroups);
+  });
+}
+
+
+///
+/// Input handling
+///
+
+var symbolTypeByEventType = {
+  touchstart: 'd',
+  touchend: 'u',
+  touchcancel: 'u',
+  touchleave: 'u',
+  touchmove: 'm'
+};
+function handleTouch(event) {
+  var type = symbolTypeByEventType[event.type];
+  Array.prototype.forEach.call(event.changedTouches, function(touch) {
+    updateRunningMachines(type, touch);
+    activateMachinesByTouch(type, touch);
+  });
+}
+
+document.addEventListener("touchstart", handleTouch, false);
+document.addEventListener("touchend", handleTouch, false);
+document.addEventListener("touchcancel", handleTouch, false);
+document.addEventListener("touchleave", handleTouch, false);
+document.addEventListener("touchmove", handleTouch, false);
+
+
 ///
 /// Test code
 ///
 
-var gestureString = 'd1d1';
+var gestureString = 'd1u1d1';
 var parsedGesture = parseGestures(gestureString);
 var fsm = computeStateMachine(parsedGesture);
-var s_0 = fsm.initialState;
-var s_1 = transition(s_0, { actionId: 'd1', targetId: 'foo' });
-var s_2 = transition(s_1, { actionId: 'd1', targetId: 'foo' });
+
+activeMachines.push(fsm);
+
 </script>
