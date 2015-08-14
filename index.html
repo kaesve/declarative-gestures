@@ -228,26 +228,25 @@ function computeStateMachine(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
-  var initialState = { group: 'top', transitions: { '': [] } };
-  var endState     = { group: 'top', transitions: { '': [] } };
   var stateMachine = {
+    initialState: { group: 'top', transitions: { '': [] } },
     groupCount: -1,
     ast: gestureTokens
   };
-  stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
+  var endState = { group: 'top', transitions: { '': [] } };
+  stateMachineForGroup(stateMachine, stateMachine.initialState, endState, gestureGroup);
 
   function prune(state) {
     if ('' in state.transitions) {
       var compositeStates = state.transitions[''];
       delete state.transitions[''];
 
-      for (var i in state.transitions) {
-        for (var t in state.transitions[i]) state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
-      }
+      for (var i in state.transitions)
+        for (var t in state.transitions[i]) 
+          state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
 
       compositeStates.forEach(function(c) {
         // TODO: figure out if c can be in a different group and what to do then.
-
         c = prune(c);
 
         for (var id in c.transitions) {
@@ -257,11 +256,11 @@ function computeStateMachine(gestureTokens) {
             state.transitions[id][target] = state.transitions[id][target].concat(c.transitions[id][target]);
           }
         }
-      });
+      }); 
     }
-    return state;   
+    return state;
   }
-  stateMachine.initialState = [ prune(initialState) ];
+  prune(stateMachine.initialState);
   return stateMachine;
 }
 
@@ -297,7 +296,7 @@ function activateMachinesByTouch(type, touch) {
   var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
   activeMachines.forEach(function(fsm) {
     var matches = [];
-    var nextStateSet = transition(fsm.initialState, symbol, matches);
+    var nextStateSet = transition([ fsm.initialState ], symbol, matches);
     if (nextStateSet.length) {
       var idMap = {};
       idMap[touch.id] = '1';
@@ -319,9 +318,7 @@ function updateRunningMachines(type, touch) {
     var matches = [];
     instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
 
-    if (matches.length) {
-      instance.fsm.onTransition(instance, symbol, touch, matches);
-    }
+    if (matches.length) instance.fsm.onTransition(instance, symbol, touch, matches);
 
     if (instance.currentStateSet.length == 0) {
       console.log('instance of FSM reached end state', instance);
@@ -336,11 +333,11 @@ function updateRunningMachines(type, touch) {
 ///
 
 var symbolTypeByEventType = {
-  touchstart: 'd',
-  touchend: 'u',
+  touchstart:  'd',
+  touchend:    'u',
   touchcancel: 'u',
-  touchleave: 'u',
-  touchmove: 'm'
+  touchleave:  'u',
+  touchmove:   'm'
 };
 
 function handleTouch(event) {
@@ -352,11 +349,11 @@ function handleTouch(event) {
   event.preventDefault();
   event.stopPropagation();
 }
-document.addEventListener("touchstart", handleTouch, false);
-document.addEventListener("touchend", handleTouch, false);
+document.addEventListener("touchstart",  handleTouch, false);
+document.addEventListener("touchend",    handleTouch, false);
 document.addEventListener("touchcancel", handleTouch, false);
-document.addEventListener("touchleave", handleTouch, false);
-document.addEventListener("touchmove", handleTouch, false);
+document.addEventListener("touchleave",  handleTouch, false);
+document.addEventListener("touchmove",   handleTouch, false);
 
 
 ///
@@ -377,9 +374,7 @@ function handleMoveGesture(instance, symbol, touch, matches) {
   instance.data.pos.y = touch.clientY;
 
   console.log('symbol', symbol, 'matches', matches);
-  console.log('groups', instance.currentStateSet.map(function(state) {
-    return state.group;
-  }));
+  console.log('groups', instance.currentStateSet.map(function(state) { return state.group; }));
 }
 
 var gestureString = 'd1/obj-1/(m1/obj-1/*)u1';
