@@ -162,10 +162,11 @@ function parseModifier(data) {
 
 function stateMachineForAction(fsm, entryState, endState, action) {
   var current = entryState;
+  var groupId = endState.group;
   var id = action.action + action.id;
   for (var repeats = 0; repeats < action.modifier.min; ++repeats) {
     current.transitions[id] = current.transitions[id] || { };
-    current = current.transitions[id][action.target] = { transitions: { '': [ ] } }; 
+    current = current.transitions[id][action.target] = { group: groupId, transitions: { '': [ ] } }; 
   }
 
   current.transitions[''].push(endState);
@@ -175,18 +176,18 @@ function stateMachineForAction(fsm, entryState, endState, action) {
   } else {
     while (repeats++ < action.modifier.max) {
       current.transitions[id] = current.transitions[id] || { };
-      current = current.transitions[id][action.target] = { transitions: { '': [ endState ] } };
+      current = current.transitions[id][action.target] = { group: groupId, transitions: { '': [ endState ] } };
     }
   }
 }
 function stateMachineForGroup(fsm, entryState, endState, group) {
-  endState.endsGroup = group.name || fsm.groupCount;
+  var groupId = group.name || fsm.groupCount;
   fsm.groupCount++;
 
   var current = entryState;
   for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
     current = group.children.reduce(function(state, e) { 
-      var n = { transitions: { '' : [ ] } };
+      var n = { group: groupId, transitions: { '' : [ ] } };
       stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
@@ -195,7 +196,7 @@ function stateMachineForGroup(fsm, entryState, endState, group) {
 
   if (group.modifier.max == Infinity) {
     current = group.children.reduce(function(state, e) { 
-      var n = { transitions: { '' : [ ] } };
+      var n = { group: groupId, transitions: { '' : [ ] } };
       stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
@@ -204,7 +205,7 @@ function stateMachineForGroup(fsm, entryState, endState, group) {
   } else {
     while(repeats++ < group.modifier.max) { 
       current = group.children.reduce(function(state, e) { 
-        var n = { transitions: { '' : [ ] } };
+        var n = { group: groupId, transitions: { '' : [ ] } };
         stateMachineForExpression(fsm, state, n, e);
         return n;
       }, current);
@@ -227,44 +228,43 @@ function stateMachineForExpression(fsm, entryState, endState, e) {
 function computeStateMachine(gestureTokens) {
   var gestureGroup = {
     type: 'group',
+    name: 'top',
     children: gestureTokens,
     modifier: { min: 1, max: 1 }
   };
 
-  var initialState = { transitions: { '': [] } };
-  var endState = { transitions: { '': [] } };
+  var initialState = { group: 'top', transitions: { '': [] } };
+  var endState     = { group: 'top', transitions: { '': [] } };
   var stateMachine = {
-    groupCount: 0,
+    groupCount: -1,
     ast: gestureTokens
   };
   stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
 
   function prune(state) {
-    var pruned = { transitions: { } };
-    if (state.endsGroup !== undefined) pruned.endsGroup = state.endsGroup;
+    if ('' in state.transitions) {
+      var compositeStates = state.transitions[''];
+      delete state.transitions[''];
 
-    for (var i in state.transitions) {
-      if(!i) continue;
-
-      pruned.transitions[i] = {};
-      for (var t in state.transitions[i]) pruned.transitions[i][t] = [ prune(state.transitions[i][t]) ];
-    }
-
-    return state.transitions[''].reduce(function(s, c) {
-      var _c = prune(c);
-      if (_c.endsGroup !== undefined) s.endsGroup = _c.endsGroup;
-
-      for (var id in _c.transitions) {
-        if (!id) continue;
-
-        s.transitions[id] = s.transitions[id] || { };
-        for (var target in _c.transitions[id]) {
-          s.transitions[id][target] = s.transitions[id][target] || [ ];
-          s.transitions[id][target] = s.transitions[id][target].concat(_c.transitions[id][target]);
-        }
+      for (var i in state.transitions) {
+        for (var t in state.transitions[i]) state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
       }
-      return s;
-    }, pruned);
+
+      compositeStates.forEach(function(c) {
+        // TODO: figure out if c can be in a different group and what to do then.
+
+        c = prune(c);
+
+        for (var id in c.transitions) {
+          state.transitions[id] = state.transitions[id] || { };
+          for (var target in c.transitions[id]) {
+            state.transitions[id][target] = state.transitions[id][target] || [ ];
+            state.transitions[id][target] = state.transitions[id][target].concat(c.transitions[id][target]);
+          }
+        }
+      });
+    }
+    return state;   
   }
   stateMachine.initialState = [ prune(initialState) ];
   return stateMachine;
@@ -310,7 +310,6 @@ function activateMachinesByTouch(type, touch) {
       });
       console.log('new instance of FSM activated', fsm, type);
     }
-
   });
 }
 function updateRunningMachines(type, touch) {
@@ -322,13 +321,6 @@ function updateRunningMachines(type, touch) {
       console.log('instance of FSM reached end state', instance);
       removeAll(runningInstances, instance);
     }
-
-    var endedGroups = [];
-    for (var i in instance.currentStateSet) 
-      if (instance.currentStateSet[i].endsGroup !== undefined) 
-        endedGroups.push(instance.currentStateSet[i].endsGroup);
-
-    if (endedGroups.length) console.log('groups have ended: ', endedGroups);
   });
 }
 
@@ -363,9 +355,22 @@ document.addEventListener("touchmove", handleTouch, false);
 /// Test code
 ///
 
-var gestureString = 'd1u1d1';
+var gestureString = 'd1(m1*)u1';
 var parsedGesture = parseGestures(gestureString);
 var fsm = computeStateMachine(parsedGesture);
+fsm.onTransition = function(instance, symbol, touch, matches) {
+  console.log('symbol', symbol, 'matches', matches);
+  console.log('groups', instance.currentStateSet.map(function(state) {
+    return state.group;
+  }));
+
+  // var endedGroups = [];
+  // for (var i in instance.currentStateSet) 
+  //   if (instance.currentStateSet[i].endsGroup !== undefined) 
+  //     endedGroups.push(instance.currentStateSet[i].endsGroup);
+
+  // if (endedGroups.length) console.log('groups have ended: ', endedGroups);
+}
 
 activeMachines.push(fsm);
 
