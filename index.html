@@ -18,18 +18,13 @@
     display: table-cell;
     vertical-align: middle;
     text-align: center;
-  }
+  }  
 
-  
-
-  #obj-1 { background: rgba(255, 100, 100, .75); top: 10px; left: 10px; }
-  #obj-2 { background: rgba(100, 255, 100, .75); top: 10px; left: 120px; }
-  #obj-3 { background: rgba(100, 100, 255, .75); top: 120px; left: 10px;}
 </style>
 
-<div class="object" id="obj-1"></div>
-<div class="object" id="obj-2"></div>
-<div class="object" id="obj-3"></div>
+<div class="object" id="obj-1" style="background: rgba(255, 100, 100, .75); top: 10px; left: 10px;"></div>
+<div class="object" id="obj-2" style="background: rgba(100, 255, 100, .75); top: 10px; left: 120px; "></div>
+<div class="object" id="obj-3" style="background: rgba(100, 100, 255, .75); top: 120px; left: 10px;"></div>
 
 <script>
 
@@ -275,13 +270,15 @@ function computeStateMachine(gestureTokens) {
 /// Run FSM
 ///
 
-function transition(stateSet, symbol) {
+function transition(stateSet, symbol, matchList) {
   return stateSet.reduce(function(resultStates, state) {
     var matchTable = state.transitions[symbol.actionId];
     if (matchTable) {
       for (var regexpDef in matchTable) {
         if (new RegExp(regexpDef).test(symbol.targetId)) {
-          resultStates = resultStates.concat(matchTable[regexpDef]);
+          var newStates = matchTable[regexpDef];
+          resultStates = resultStates.concat(newStates);
+          matchList.push(symbol.actionId + '/' + regexpDef + '/', newStates.map(function(state) {return state.group}).join(', '));
         }
       }
     }
@@ -299,15 +296,19 @@ var runningInstances = [];
 function activateMachinesByTouch(type, touch) {
   var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
   activeMachines.forEach(function(fsm) {
-    var nextStateSet = transition(fsm.initialState, symbol);
+    var matches = [];
+    var nextStateSet = transition(fsm.initialState, symbol, matches);
     if (nextStateSet.length) {
       var idMap = {};
       idMap[touch.id] = '1';
-      runningInstances.push({
+      var instance = {
         fsm: fsm,
         currentStateSet: nextStateSet,
         localTouchIdsByGlobalId: idMap
-      });
+      };
+
+      runningInstances.push(instance);
+      fsm.onTransition(instance, symbol, touch, matches);
       console.log('new instance of FSM activated', fsm, type);
     }
   });
@@ -315,7 +316,12 @@ function activateMachinesByTouch(type, touch) {
 function updateRunningMachines(type, touch) {
   runningInstances.forEach(function(instance) {
     var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
-    instance.currentStateSet = transition(instance.currentStateSet, symbol);
+    var matches = [];
+    instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
+
+    if (matches.length) {
+      instance.fsm.onTransition(instance, symbol, touch, matches);
+    }
 
     if (instance.currentStateSet.length == 0) {
       console.log('instance of FSM reached end state', instance);
@@ -336,14 +342,16 @@ var symbolTypeByEventType = {
   touchleave: 'u',
   touchmove: 'm'
 };
+
 function handleTouch(event) {
   var type = symbolTypeByEventType[event.type];
   Array.prototype.forEach.call(event.changedTouches, function(touch) {
     updateRunningMachines(type, touch);
     activateMachinesByTouch(type, touch);
   });
+  event.preventDefault();
+  event.stopPropagation();
 }
-
 document.addEventListener("touchstart", handleTouch, false);
 document.addEventListener("touchend", handleTouch, false);
 document.addEventListener("touchcancel", handleTouch, false);
@@ -355,23 +363,36 @@ document.addEventListener("touchmove", handleTouch, false);
 /// Test code
 ///
 
-var gestureString = 'd1(m1*)u1';
-var parsedGesture = parseGestures(gestureString);
-var fsm = computeStateMachine(parsedGesture);
-fsm.onTransition = function(instance, symbol, touch, matches) {
+function handleMoveGesture(instance, symbol, touch, matches) {
+  if (symbol.actionId[0] == 'd') {
+    instance.data = { pos: { x: undefined, y: undefined } };
+  } else if (symbol.actionId[0] == 'm') {
+    var dx = touch.clientX - instance.data.pos.x;
+    var dy = touch.clientY - instance.data.pos.y;
+    touch.target.style.left = (parseFloat(touch.target.style.left) + dx) + 'px';
+    touch.target.style.top = (parseFloat(touch.target.style.top) + dy) + 'px';
+  }
+
+  instance.data.pos.x = touch.clientX;
+  instance.data.pos.y = touch.clientY;
+
   console.log('symbol', symbol, 'matches', matches);
   console.log('groups', instance.currentStateSet.map(function(state) {
     return state.group;
   }));
-
-  // var endedGroups = [];
-  // for (var i in instance.currentStateSet) 
-  //   if (instance.currentStateSet[i].endsGroup !== undefined) 
-  //     endedGroups.push(instance.currentStateSet[i].endsGroup);
-
-  // if (endedGroups.length) console.log('groups have ended: ', endedGroups);
 }
 
+var gestureString = 'd1/obj-1/(m1/obj-1/*)u1';
+var parsedGesture = parseGestures(gestureString);
+var fsm = computeStateMachine(parsedGesture);
+fsm.onTransition = handleMoveGesture;
 activeMachines.push(fsm);
+
+gestureString = 'd1/obj-2/(m1/obj-2/*)u1';
+parsedGesture = parseGestures(gestureString);
+fsm = computeStateMachine(parsedGesture);
+fsm.onTransition = handleMoveGesture;
+activeMachines.push(fsm);
+
 
 </script>
