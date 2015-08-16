@@ -41,7 +41,6 @@ function removeAll(arr, obj) {
     }
 }
 
-
 ///
 /// Parsing
 ///
@@ -218,6 +217,7 @@ function stateMachineForExpression(fsm, entryState, endState, e) {
     case 'group':   f = stateMachineForGroup;   break;
     case 'options': f = stateMachineForOptions; break;
   }
+
   f(fsm, entryState, endState, e);
 }
 function computeStateMachine(gestureTokens) {
@@ -412,6 +412,7 @@ document.addEventListener("touchmove",   handleTouch, false);
 ///
 
 function handleMoveGesture(instance, symbol, touch, matches) {
+  if (symbol.actionId[1] != '1') return;
   if (symbol.actionId[0] == 'd') {
     instance.data = { pos: { x: undefined, y: undefined } };
   } else if (symbol.actionId[0] == 'm') {
@@ -428,13 +429,14 @@ function handleMoveGesture(instance, symbol, touch, matches) {
   console.log('groups', instance.currentStateSet.map(function(state) { return state.group; }));
 }
 
-var gestureString = 'd1/obj-1/(m1/obj-1/*)u1';
+var gestureString = 'd1/obj-1/(m1/obj-1/|d2|m2|u2)*u1';
+// var gestureString = '(m1|d2)*u1';
 var parsedGesture = parseGestures(gestureString);
 var fsm = computeStateMachine(parsedGesture);
 fsm.onTransition = handleMoveGesture;
 activeMachines.push(fsm);
 
-gestureString = 'd1/obj-2/(m1/obj-2/*)u1';
+gestureString = 'd1/obj-2/(m1/obj-2/|d2|m2|u2)*u1';
 parsedGesture = parseGestures(gestureString);
 fsm = computeStateMachine(parsedGesture);
 fsm.onTransition = handleMoveGesture;
