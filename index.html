@@ -228,39 +228,70 @@ function computeStateMachine(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
+  var endState = { group: 'top', transitions: { '': [] } };
+  var initialState = { group: 'top', transitions: { '': [] } };
   var stateMachine = {
-    initialState: { group: 'top', transitions: { '': [] } },
     groupCount: -1,
     ast: gestureTokens
   };
-  var endState = { group: 'top', transitions: { '': [] } };
-  stateMachineForGroup(stateMachine, stateMachine.initialState, endState, gestureGroup);
+  stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
 
   function prune(state) {
     if ('' in state.transitions) {
       var compositeStates = state.transitions[''];
       delete state.transitions[''];
 
+      state.backlinked = [];
+      state.linksBack = [];
+
       for (var i in state.transitions)
-        for (var t in state.transitions[i]) 
-          state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
+        for (var t in state.transitions[i]) {
+          if ('backlinked' in state.transitions[i][t]) 
+            state.transitions[i][t].backlinked.push(state);
+          else state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
+        }
 
       compositeStates.forEach(function(c) {
-        // TODO: figure out if c can be in a different group and what to do then.
-        c = prune(c);
+        if ('backlinked' in c) {
+          state.linksBack.push(c);
+          c.backlinked.push(state);
+        }
+        else {
+          // TODO: figure out if c can be in a different group and what to do then.
+          c = prune(c);
 
-        for (var id in c.transitions) {
-          state.transitions[id] = state.transitions[id] || { };
-          for (var target in c.transitions[id]) {
-            state.transitions[id][target] = state.transitions[id][target] || [ ];
-            state.transitions[id][target] = state.transitions[id][target].concat(c.transitions[id][target]);
+          if (c.linksBack) c.linksBack.forEach(function(s) { 
+            s.backlinked.push(state);
+            state.linksBack.push(s);
+          });
+
+          for (var id in c.transitions) {
+            state.transitions[id] = state.transitions[id] || { };
+            for (var target in c.transitions[id]) {
+              state.transitions[id][target] = state.transitions[id][target] || [ ];
+              state.transitions[id][target] = state.transitions[id][target].concat(c.transitions[id][target]);
+            }
+          } 
+        }
+      });
+
+      state.backlinked.forEach(function(c) {
+        for (var id in state.transitions) {
+          c.transitions[id] = c.transitions[id] || { };
+          for (var target in state.transitions[id]) {
+            c.transitions[id][target] = c.transitions[id][target] || [ ];
+            c.transitions[id][target] = c.transitions[id][target].concat(state.transitions[id][target]);
           }
         }
-      }); 
+        removeAll(c.linksBack, state);
+        if (!c.linksBack.length) delete c.linksBack;
+      });
+      delete state.backlinked; 
+      if (!state.linksBack.length) delete state.linksBack;
     }
     return state;
   }
-  prune(stateMachine.initialState);
+  stateMachine.initialState = prune(initialState);
   return stateMachine;
 }
 
