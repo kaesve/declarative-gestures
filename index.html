@@ -330,11 +330,12 @@ function activateMachinesByTouch(type, touch) {
     var nextStateSet = transition([ fsm.initialState ], symbol, matches);
     if (nextStateSet.length) {
       var idMap = {};
-      idMap[touch.id] = '1';
+      idMap[touch.identifier] = '1';
       var instance = {
         fsm: fsm,
         currentStateSet: nextStateSet,
-        localTouchIdsByGlobalId: idMap
+        localIdsByGlobalId: idMap,
+        localIdsInUse: [ undefined, true ]
       };
 
       runningInstances.push(instance);
@@ -345,17 +346,36 @@ function activateMachinesByTouch(type, touch) {
 }
 function updateRunningMachines(type, touch) {
   runningInstances.forEach(function(instance) {
-    var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
+    var localTouchId = getLocalTouchId(instance, touch.identifier);
+    if (type == 'u') forgetGlobalId(instance, touch.identifier);
+
+    var symbol = { actionId: type + localTouchId, targetId: touch.target.id, touch: touch };
     var matches = [];
     instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
 
     if (matches.length) instance.fsm.onTransition(instance, symbol, touch, matches);
 
     if (instance.currentStateSet.length == 0) {
-      console.log('instance of FSM reached end state', instance);
+      console.log('instance of FSM reached end state', instance, symbol);
       removeAll(runningInstances, instance);
     }
   });
+}
+
+function getLocalTouchId(instance, globalId) {
+  var localId = instance.localIdsByGlobalId[globalId] || 0;
+  
+  if (!localId) {
+    while (instance.localIdsInUse[++localId]) {}
+    instance.localIdsInUse[localId] = true;
+    instance.localIdsByGlobalId[globalId] = localId;
+  }
+
+  return localId;
+}
+function forgetGlobalId(instance, globalId) {
+  var localId = instance.localIdsByGlobalId[globalId];
+  instance.localIdsInUse[localId] = instance.localIdsByGlobalId[globalId] = false;
 }
 
 
