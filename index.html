@@ -190,13 +190,13 @@ function stateMachineForGroup(fsm, entryState, endState, group) {
   current.transitions[''].push(endState);
 
   if (group.modifier.max == Infinity) {
-    current = group.children.reduce(function(state, e) { 
+    var next = group.children.reduce(function(state, e) { 
       var n = { group: groupId, transitions: { '' : [ ] } };
       stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
-    current.transitions[''].push(endState);
-    current.transitions[''].push(current);
+    next.transitions[''].push(endState);
+    next.transitions[''].push(current);
   } else {
     while(repeats++ < group.modifier.max) { 
       current = group.children.reduce(function(state, e) { 
