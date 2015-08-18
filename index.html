@@ -63,6 +63,15 @@ document.addEventListener("touchmove",   handleTouch, false);
 ///
 
 function handleMoveGesture(instance, symbol, touch, matches) {
+  var currentGroups = instance.currentStateSet.map(function(state) { return state.group; });
+  console.log('symbol', symbol, 'matches', matches);
+  console.log('groups', currentGroups);
+
+  if (currentGroups.reduce(function(b, m) { return b && m == 'end'; }, currentGroups.length)) {
+    console.log('the end');
+    return;
+  }
+
   if (symbol.actionId[1] != '1') return;
   if (symbol.actionId[0] == 'd') {
     instance.data = { pos: { x: undefined, y: undefined } };
@@ -75,20 +84,11 @@ function handleMoveGesture(instance, symbol, touch, matches) {
 
   instance.data.pos.x = touch.clientX;
   instance.data.pos.y = touch.clientY;
-
-  console.log('symbol', symbol, 'matches', matches);
-  console.log('groups', instance.currentStateSet.map(function(state) { return state.group; }));
 }
 
-var gestureString = 'd1/obj-1/(m1/obj-1/|d2|m2|u2)*u1';
+var gestureString = 'd1/obj-./(m1/obj-./|d2|m2|u2)*u1';
 var fsm = compileGesture(gestureString);
 fsm.onTransition = handleMoveGesture;
 activeMachines.push(fsm);
-
-gestureString = 'd1/obj-2/(m1/obj-2/|d2|m2|u2)*u1';
-fsm = compileGesture(gestureString);
-fsm.onTransition = handleMoveGesture;
-activeMachines.push(fsm);
-
 
 </script>

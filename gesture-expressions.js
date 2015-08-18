@@ -198,8 +198,8 @@ function stateMachineForParsedGesture(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
-  var endState = { group: 'top', transitions: { '': [] } };
-  var initialState = { group: 'top', transitions: { '': [] } };
+  var initialState = { group: 'start', transitions: { '': [] } };
+  var endState = { group: 'end', transitions: { '': [] } };
   var stateMachine = {
     groupCount: -1,
     ast: gestureTokens
@@ -229,6 +229,7 @@ function stateMachineForParsedGesture(gestureTokens) {
         else {
           // TODO: figure out if c can be in a different group and what to do then.
           c = prune(c);
+          state.group = c.group || state.group;
 
           if (c.linksBack) c.linksBack.forEach(function(s) { 
             s.backlinked.push(state);
