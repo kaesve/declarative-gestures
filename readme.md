@@ -1,6 +1,4 @@
 # Declarative gestures
 
-This project is inspired by pixar's Proton project[Pixar]. I set out to create a DSL similar to regular expressions, to recognize 'ongoing' multi-touch gestures, such as **pinch-to-zoom** (as opposed to shape gestures, such as described in [$1].
+This project is inspired by a paper [Proton: Multitouch Gestures as Regular Expressions](http://graphics.pixar.com/library/ProtonChi/paper.pdf). The paper describes a system to write multi-touch gestures by recognizing patterns in a stream of touch inputs with a regular expression like syntax. In this project I aim to implement a similar system for browsers, in javascript.
 
-[Pixar]: http://graphics.pixar.com/library/ProtonChi/paper.pdf "Proton: Multitouch Gestures as Regular Expressions"
-[$1]: https://depts.washington.edu/aimgroup/proj/dollar/ "$1 Unistroke Recognizer"
