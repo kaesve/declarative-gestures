@@ -198,11 +198,15 @@ function stateMachineForParsedGesture(gestureTokens) {
     modifier: { min: 1, max: 1 }
   };
 
+  function noop() {}
   var initialState = { group: 'start', transitions: { '': [] } };
   var endState = { group: 'end', transitions: { '': [] } };
   var stateMachine = {
     groupCount: -1,
-    ast: gestureTokens
+    ast: gestureTokens,
+    onTransition: noop,
+    onEnd: noop,
+    onStart: noop
   };
   stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
 
@@ -315,6 +319,7 @@ function activateMachinesByTouch(type, touch) {
       };
 
       runningInstances.push(instance);
+      fsm.onStart(instance, symbol);
       fsm.onTransition(instance, symbol, touch, matches);
       console.log('new instance of FSM activated', fsm, type);
     }
@@ -332,9 +337,14 @@ function updateRunningMachines(type, touch) {
     if (matches.length) instance.fsm.onTransition(instance, symbol, touch, matches);
 
     if (instance.currentStateSet.length == 0) {
-      console.log('instance of FSM reached end state', instance, symbol);
+      console.log('instance of FSM reached end state (failure)', instance, symbol);
       removeAll(runningInstances, instance);
-    }
+      instance.fsm.onEnd(instance, false, symbol);
+    } else if (instance.currentStateSet.reduce(function(b, state) { return b && state.group == 'end'; }, true)) {
+      console.log('instance of FSM reached end state (success)', instance, symbol);
+      removeAll(runningInstances, instance);
+      instance.fsm.onEnd(instance, true, symbol);
+    } 
   });
 }
 
