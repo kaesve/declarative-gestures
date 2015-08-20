@@ -3,11 +3,12 @@
 <style>
   body,html {
     margin: 0; padding: 0;
-    font: 20px/1.5 sans-serif;
+    font: 14px/1.5 monospace;
     text-shadow: 0 1px #fff, 0 -1px #fff, 1px 0 #fff, -1px 0 #fff;
   }
 
   .object {
+    font-size: 20px;
     display: table;
     border-radius: 5px;
     position: absolute;
@@ -18,49 +19,190 @@
     display: table-cell;
     vertical-align: middle;
     text-align: center;
-  }  
+  }
+
+  #gestureCreator {
+    position: absolute;
+    left: 50%;
+  }
+  th { text-align: left; } 
+  button, input {
+    font: inherit;
+    background: none;
+    border: 1px solid #ccc;
+    margin-right: 0.2em;
+    border-radius: 0.2em;
+  }
+
+  input[type=text] {
+    padding: 0 .4em;
+    border-color: transparent;
+    border-bottom-color: #ccc;
+  }
+
+  .gestureCreator-instanceCount,
+  .gestureCreator-matchCount,
+  .gestureCreator-failCount {
+    text-align: right;
+    width: 60px;
+  }
+  .gestureCreator-item {
+    margin: 0.2em 0;
+  }
 
 </style>
 
-<div class="object" id="obj-1" style="background: rgba(255, 100, 100, .75); top: 10px; left: 10px;"></div>
-<div class="object" id="obj-2" style="background: rgba(100, 255, 100, .75); top: 10px; left: 120px; "></div>
-<div class="object" id="obj-3" style="background: rgba(100, 100, 255, .75); top: 120px; left: 10px;"></div>
+<div id="targetArea">
+  <div class="object" id="obj-1" style="background: rgba(255, 100, 100, .75); top: 10px; left: 10px;"></div>
+  <div class="object" id="obj-2" style="background: rgba(100, 255, 100, .75); top: 10px; left: 120px; "></div>
+  <div class="object" id="obj-3" style="background: rgba(100, 100, 255, .75); top: 120px; left: 10px;"></div>
+</div>
 
+
+<div id="gestureCreator"></div>
+
+<script src="https://fb.me/react-0.13.3.js"></script>
+<script src="https://fb.me/JSXTransformer-0.13.3.js"></script>
+
+<!-- 
+<script src="build/react.js"></script>
+<script src="build/JSXTransformer.js"></script> 
+-->
 
 <script type="text/javascript" src="gesture-expressions.js"></script>
 <script type="text/javascript" src="touch-driver.js"></script>
-<script>
+<script type="text/jsx">
+
 ///
-/// Client code
+/// Gesture creator
 ///
 
-function handleMoveGesture(instance, symbol, touch, matches) {
-  var currentGroups = instance.currentStateSet.map(function(state) { return state.group; });
-  console.log('symbol', symbol, 'matches', matches);
-  console.log('groups', currentGroups);
-
-  if (currentGroups.reduce(function(b, m) { return b && m == 'end'; }, currentGroups.length)) {
-    console.log('the end');
-    return;
+var GestureCreatorList = React.createClass({
+  getInitialState: function() { 
+    return { 
+      itemIds: [ 0 ], 
+      nextId: 1 
+    }; 
+  },
+  removeItem: function(id) { 
+    removeAll(this.state.itemIds, id);
+    this.setState({ itemIds: this.state.itemIds }); 
+  },
+  addItem: function() { 
+    this.setState({ 
+      itemIds: this.state.itemIds.concat([this.state.nextId]),
+      nextId: this.state.nextId + 1
+    });
+  },
+  render: function() {
+    return (
+      <table className="gestureCreator-list">
+        <thead>
+          <tr>
+            <th>
+              <button onClick={this.addItem}>+</button>
+            </th>
+            <th>Gesture expressions</th>
+            <th></th>
+            <th className="gestureCreator-matchCount">matches</th>
+            <th className="gestureCreator-failCount">fails</th>
+            <th className="gestureCreator-instanceCount">running</th>
+          </tr>
+        </thead>
+        <tbody>
+          { this.state.itemIds.map(function(id) { return (<GestureCreatorItem key={id} onRemove={this.removeItem.bind(this, id)} />); }, this) }
+        </tbody>
+      </table>
+    );
   }
+});
 
-  if (symbol.actionId[1] != '1') return;
-  if (symbol.actionId[0] == 'd') {
-    instance.data = { pos: { x: undefined, y: undefined } };
-  } else if (symbol.actionId[0] == 'm') {
-    var dx = touch.clientX - instance.data.pos.x;
-    var dy = touch.clientY - instance.data.pos.y;
-    touch.target.style.left = (parseFloat(touch.target.style.left) + dx) + 'px';
-    touch.target.style.top = (parseFloat(touch.target.style.top) + dy) + 'px';
+var GestureCreatorItem = React.createClass({
+  getInitialState: function() {
+    return {
+      expression: '',
+      registered: false,
+      runningInstances: 0,
+      successes: 0,
+      fails: 0,
+      fsm: false
+    };
+  },
+  handleChange: function(event) {
+    if (this.state.registered) this.cancelExpression();
+
+    this.setState({ expression: event.target.value });
+  },
+  toggleActivity: function() {
+    this.state.registered ? this.cancelExpression() : this.registerExpression();
+  },
+  cancelExpression: function() {
+    removeAll(activeMachines, this.state.fsm);
+    var state = this.getInitialState();
+    delete state.expression;
+    this.setState(state);
+  },
+  registerExpression: function() {
+    console.log('register please', this);
+
+    // debugger;
+    var self = this;
+    var fsm = compileGesture(this.state.expression);
+    fsm.onStart = function(instance, symbol) {
+      self.setState({ runningInstances: self.state.runningInstances + 1 });
+    };
+    fsm.onEnd = function(instance, success, symbol) {
+      var delta = { runningInstances: self.state.runningInstances - 1 };
+      if (success) delta['successes'] = self.state.successes + 1;
+      else         delta['fails']     = self.state.fails + 1;
+
+      self.setState(delta);
+    };
+    activeMachines.push(fsm);
+
+    this.setState({ fsm: fsm, registered: true });
+
+  },
+  remove: function() {
+    console.log('remove', this);
+    this.cancelExpression();
+    this.props.onRemove();
+  },
+  render: function() {
+    var expression = this.state.expression;
+    var activationLabel = 'Run';
+    if (this.state.registered) {
+      activationLabel = 'Stop'; 
+    } 
+
+    return (
+      <tr className="gestureCreator-item">
+        <td>
+          <button className="gestureCreator-remove" onClick={this.remove}>x</button>
+        </td>
+        <td>
+          <input type="text" className="gestureCreator-field" value={expression} placeholder="gesture expression" onChange={this.handleChange} />
+        </td>
+        <td>
+          <button className="gestureCreator-toggleActive" onClick={this.toggleActivity}>{activationLabel}</button>
+        </td>
+        <td className="gestureCreator-matchCount">{this.state.successes}</td>
+        <td className="gestureCreator-failCount">{this.state.fails}</td>
+        <td className="gestureCreator-instanceCount">{this.state.runningInstances}</td>
+      </tr>
+    );
   }
+});
 
-  instance.data.pos.x = touch.clientX;
-  instance.data.pos.y = touch.clientY;
-}
+var creatorElement = document.getElementById('gestureCreator');
+var creatorInstance = React.render(<GestureCreatorList />, creatorElement);
 
-var gestureString = 'd1/obj-./(m1/obj-./|d2|m2|u2)*u1';
-var fsm = compileGesture(gestureString);
-fsm.onTransition = handleMoveGesture;
-activeMachines.push(fsm);
+
+
+///
+/// Initialisation
+///
+
+registerDriver(document.getElementById('targetArea'));
 
 </script>
