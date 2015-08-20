@@ -19,8 +19,11 @@ function handleTouch(event) {
   event.preventDefault();
   event.stopPropagation();
 }
-document.addEventListener("touchstart",  handleTouch, false);
-document.addEventListener("touchend",    handleTouch, false);
-document.addEventListener("touchcancel", handleTouch, false);
-document.addEventListener("touchleave",  handleTouch, false);
-document.addEventListener("touchmove",   handleTouch, false);
+
+function registerDriver(elem) {
+  elem.addEventListener("touchstart",  handleTouch, false);
+  elem.addEventListener("touchend",    handleTouch, false);
+  elem.addEventListener("touchcancel", handleTouch, false);
+  elem.addEventListener("touchleave",  handleTouch, false);
+  elem.addEventListener("touchmove",   handleTouch, false); 
+}
