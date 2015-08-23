@@ -130,17 +130,17 @@ function stateMachineForAction(fsm, entryState, endState, action) {
   var id = action.action + action.id;
   for (var repeats = 0; repeats < action.modifier.min; ++repeats) {
     current.transitions[id] = current.transitions[id] || { };
-    current = current.transitions[id][action.target] = { group: groupId, transitions: { '': [ ] } }; 
+    current = current.transitions[id][action.target] = { group: groupId, transitions: { }, compositeStates: [ ] }; 
   }
 
-  current.transitions[''].push(endState);
+  current.compositeStates.push(endState);
   if (action.modifier.max == Infinity) {
     current.transitions[id] = current.transitions[id] || { };
     current.transitions[id][action.target] = current; 
   } else {
     while (repeats++ < action.modifier.max) {
       current.transitions[id] = current.transitions[id] || { };
-      current = current.transitions[id][action.target] = { group: groupId, transitions: { '': [ endState ] } };
+      current = current.transitions[id][action.target] = { group: groupId, transitions: { }, compositeStates: [ endState ] };
     }
   }
 }
@@ -151,29 +151,29 @@ function stateMachineForGroup(fsm, entryState, endState, group) {
   var current = entryState;
   for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
     current = group.children.reduce(function(state, e) { 
-      var n = { group: groupId, transitions: { '' : [ ] } };
+      var n = { group: groupId, transitions: { }, compositeStates: [ ] };
       stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
   }
-  current.transitions[''].push(endState);
+  current.compositeStates.push(endState);
 
   if (group.modifier.max == Infinity) {
     var next = group.children.reduce(function(state, e) { 
-      var n = { group: groupId, transitions: { '' : [ ] } };
+      var n = { group: groupId, transitions: { }, compositeStates: [ ] };
       stateMachineForExpression(fsm, state, n, e);
       return n;
     }, current);
-    next.transitions[''].push(endState);
-    next.transitions[''].push(current);
+    next.compositeStates.push(endState);
+    next.compositeStates.push(current);
   } else {
     while(repeats++ < group.modifier.max) { 
       current = group.children.reduce(function(state, e) { 
-        var n = { group: groupId, transitions: { '' : [ ] } };
+        var n = { group: groupId, transitions: { }, compositeStates: [ ] };
         stateMachineForExpression(fsm, state, n, e);
         return n;
       }, current);
-      current.transitions[''].push(endState);
+      current.compositeStates.push(endState);
     }
   }
 }
@@ -199,8 +199,8 @@ function stateMachineForParsedGesture(gestureTokens) {
   };
 
   function noop() {}
-  var initialState = { group: 'start', transitions: { '': [] } };
-  var endState = { group: 'end', transitions: { '': [] } };
+  var initialState = { group: 'start', transitions: { }, compositeStates: [ ] };
+  var endState = { group: 'end', transitions: { }, compositeStates: [ ] };
   var stateMachine = {
     groupCount: -1,
     ast: gestureTokens,
@@ -209,64 +209,7 @@ function stateMachineForParsedGesture(gestureTokens) {
     onStart: noop
   };
   stateMachineForGroup(stateMachine, initialState, endState, gestureGroup);
-
-  function prune(state) {
-    if ('' in state.transitions) {
-      var compositeStates = state.transitions[''];
-      delete state.transitions[''];
-
-      state.backlinked = [];
-      state.linksBack = [];
-
-      for (var i in state.transitions)
-        for (var t in state.transitions[i]) {
-          if ('backlinked' in state.transitions[i][t]) 
-            state.transitions[i][t].backlinked.push(state);
-          else state.transitions[i][t] = [ prune(state.transitions[i][t]) ];
-        }
-
-      compositeStates.forEach(function(c) {
-        if ('backlinked' in c) {
-          state.linksBack.push(c);
-          c.backlinked.push(state);
-        }
-        else {
-          // TODO: figure out if c can be in a different group and what to do then.
-          c = prune(c);
-          state.group = c.group || state.group;
-
-          if (c.linksBack) c.linksBack.forEach(function(s) { 
-            s.backlinked.push(state);
-            state.linksBack.push(s);
-          });
-
-          for (var id in c.transitions) {
-            state.transitions[id] = state.transitions[id] || { };
-            for (var target in c.transitions[id]) {
-              state.transitions[id][target] = state.transitions[id][target] || [ ];
-              state.transitions[id][target] = state.transitions[id][target].concat(c.transitions[id][target]);
-            }
-          } 
-        }
-      });
-
-      state.backlinked.forEach(function(c) {
-        for (var id in state.transitions) {
-          c.transitions[id] = c.transitions[id] || { };
-          for (var target in state.transitions[id]) {
-            c.transitions[id][target] = c.transitions[id][target] || [ ];
-            c.transitions[id][target] = c.transitions[id][target].concat(state.transitions[id][target]);
-          }
-        }
-        removeAll(c.linksBack, state);
-        if (!c.linksBack.length) delete c.linksBack;
-      });
-      delete state.backlinked; 
-      if (!state.linksBack.length) delete state.linksBack;
-    }
-    return state;
-  }
-  stateMachine.initialState = prune(initialState);
+  stateMachine.initialState = initialState;
   return stateMachine;
 }
 
@@ -280,7 +223,7 @@ function compileGesture(gestureString) {
 /// Run FSM
 ///
 
-function transition(stateSet, symbol, matchList) {
+function transition(stateSet, symbol) {
   return stateSet.reduce(function(resultStates, state) {
     var matchTable = state.transitions[symbol.actionId];
     if (matchTable) {
@@ -288,11 +231,11 @@ function transition(stateSet, symbol, matchList) {
         if (new RegExp(regexpDef).test(symbol.targetId)) {
           var newStates = matchTable[regexpDef];
           resultStates = resultStates.concat(newStates);
-          matchList.push(symbol.actionId + '/' + regexpDef + '/', newStates.map(function(state) {return state.group}).join(', '));
         }
       }
     }
-    return resultStates;
+
+    return resultStates.concat(transition(state.compositeStates, symbol));
   }, [ ]);
 }
 
@@ -306,8 +249,7 @@ var runningInstances = [];
 function activateMachinesByTouch(type, touch) {
   var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
   activeMachines.forEach(function(fsm) {
-    var matches = [];
-    var nextStateSet = transition([ fsm.initialState ], symbol, matches);
+    var nextStateSet = transition([ fsm.initialState ], symbol);
     if (nextStateSet.length) {
       var idMap = {};
       idMap[touch.identifier] = '1';
@@ -320,7 +262,7 @@ function activateMachinesByTouch(type, touch) {
 
       runningInstances.push(instance);
       fsm.onStart(instance, symbol);
-      fsm.onTransition(instance, symbol, touch, matches);
+      fsm.onTransition(instance, symbol, touch);
       console.log('new instance of FSM activated', fsm, type);
     }
   });
@@ -331,19 +273,20 @@ function updateRunningMachines(type, touch) {
     if (type == 'u') forgetGlobalId(instance, touch.identifier);
 
     var symbol = { actionId: type + localTouchId, targetId: touch.target.id, touch: touch };
-    var matches = [];
-    instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
+    instance.currentStateSet = transition(instance.currentStateSet, symbol);
 
-    if (matches.length) instance.fsm.onTransition(instance, symbol, touch, matches);
-
-    if (instance.currentStateSet.length == 0) {
+    if (instance.currentStateSet.length) {
+      instance.fsm.onTransition(instance, symbol, touch);
+      
+      if (instance.currentStateSet.reduce(function(b, state) { return b && state.group == 'end'; }, true)) {
+        console.log('instance of FSM reached end state (success)', instance, symbol);
+        removeAll(runningInstances, instance);
+        instance.fsm.onEnd(instance, true, symbol);
+      } 
+    } else {
       console.log('instance of FSM reached end state (failure)', instance, symbol);
       removeAll(runningInstances, instance);
       instance.fsm.onEnd(instance, false, symbol);
-    } else if (instance.currentStateSet.reduce(function(b, state) { return b && state.group == 'end'; }, true)) {
-      console.log('instance of FSM reached end state (success)', instance, symbol);
-      removeAll(runningInstances, instance);
-      instance.fsm.onEnd(instance, true, symbol);
     } 
   });
 }

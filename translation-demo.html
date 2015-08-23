@@ -34,9 +34,9 @@
 /// Client code
 ///
 
-function handleMoveGesture(instance, symbol, touch, matches) {
+function handleMoveGesture(instance, symbol, touch) {
   var currentGroups = instance.currentStateSet.map(function(state) { return state.group; });
-  console.log('symbol', symbol, 'matches', matches);
+  console.log('symbol', symbol);
   console.log('groups', currentGroups);
 
   if (currentGroups.reduce(function(b, m) { return b && m == 'end'; }, currentGroups.length)) {
