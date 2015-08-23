@@ -2,9 +2,13 @@
 /// Helpers
 /// 
 
-function removeAll(arr, obj) { 
+function removeAll(arr, fn) {
+  if (typeof fn != 'function') { 
+    var obj = fn; 
+    fn = function(other) { return other == obj; } 
+  } 
   for (var i = 0; i < arr.length; ++i) 
-    if (arr[i] == obj) {
+    if (fn(arr[i])) {
       arr[i] = arr[arr.length - 1];
       arr.length--; 
     }
@@ -223,7 +227,7 @@ function compileGesture(gestureString) {
 /// Run FSM
 ///
 
-function transition(stateSet, symbol) {
+function transition(stateSet, symbol, matches) {
   return stateSet.reduce(function(resultStates, state) {
     var matchTable = state.transitions[symbol.actionId];
     if (matchTable) {
@@ -231,11 +235,12 @@ function transition(stateSet, symbol) {
         if (new RegExp(regexpDef).test(symbol.targetId)) {
           var newStates = matchTable[regexpDef];
           resultStates = resultStates.concat(newStates);
+          matches.push(symbol.actionId + '/' + regexpDef + '/');
         }
       }
     }
 
-    return resultStates.concat(transition(state.compositeStates, symbol));
+    return resultStates.concat(transition(state.compositeStates, symbol, matches));
   }, [ ]);
 }
 
@@ -244,14 +249,21 @@ function transition(stateSet, symbol) {
 /// FSM management
 ///
 
+function stateSetHasEndState(stateSet) {
+  return stateSet.reduce(function(hasEndState, state) {
+    return hasEndState || state.group == 'end' || stateSetHasEndState(state.compositeStates);
+  }, false);
+}
+
 var activeMachines = [];
 var runningInstances = [];
 function activateMachinesByTouch(type, touch) {
   var symbol = { actionId: type + '1', targetId: touch.target.id, touch: touch };
   activeMachines.forEach(function(fsm) {
-    var nextStateSet = transition([ fsm.initialState ], symbol);
-    if (nextStateSet.length) {
-      var idMap = {};
+    var matches = [ ];
+    var nextStateSet = transition([ fsm.initialState ], symbol, matches);
+    if (matches.length) {
+      var idMap = { };
       idMap[touch.identifier] = '1';
       var instance = {
         fsm: fsm,
@@ -260,10 +272,11 @@ function activateMachinesByTouch(type, touch) {
         localIdsInUse: [ undefined, true ]
       };
 
-      runningInstances.push(instance);
       fsm.onStart(instance, symbol);
       fsm.onTransition(instance, symbol, touch);
       console.log('new instance of FSM activated', fsm, type);
+
+      runningInstances.push(instance);
     }
   });
 }
@@ -273,20 +286,16 @@ function updateRunningMachines(type, touch) {
     if (type == 'u') forgetGlobalId(instance, touch.identifier);
 
     var symbol = { actionId: type + localTouchId, targetId: touch.target.id, touch: touch };
-    instance.currentStateSet = transition(instance.currentStateSet, symbol);
+    var matches = [ ];
+    var wasEndState = stateSetHasEndState(instance.currentStateSet);
+    instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
 
-    if (instance.currentStateSet.length) {
-      instance.fsm.onTransition(instance, symbol, touch);
+    if (matches.length) instance.fsm.onTransition(instance, symbol, touch);
       
-      if (instance.currentStateSet.reduce(function(b, state) { return b && state.group == 'end'; }, true)) {
-        console.log('instance of FSM reached end state (success)', instance, symbol);
-        removeAll(runningInstances, instance);
-        instance.fsm.onEnd(instance, true, symbol);
-      } 
-    } else {
-      console.log('instance of FSM reached end state (failure)', instance, symbol);
+    if (instance.currentStateSet.length == 0) {
+      console.log('reached end state (' + (wasEndState ? 'success)' : 'failure)'), instance, symbol);
       removeAll(runningInstances, instance);
-      instance.fsm.onEnd(instance, false, symbol);
+      instance.fsm.onEnd(instance, wasEndState, symbol);
     } 
   });
 }
