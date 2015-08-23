@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<title>Declarative gestures -- demo page</title>
+<style>
+  body,html {
+    margin: 0; padding: 0;
+    font: 20px/1.5 sans-serif;
+    text-shadow: 0 1px #fff, 0 -1px #fff, 1px 0 #fff, -1px 0 #fff;
+  }
+
+  .object {
+    display: table;
+    border-radius: 5px;
+    position: absolute;
+    width: 100px; height: 100px;
+  }
+  .object:after {
+    content: attr(id);
+    display: table-cell;
+    vertical-align: middle;
+    text-align: center;
+  }  
+
+</style>
+
+<div class="object" id="obj-1" style="background: rgba(255, 100, 100, .75); top: 10px; left: 10px;"></div>
+<div class="object" id="obj-2" style="background: rgba(100, 255, 100, .75); top: 10px; left: 120px; "></div>
+<div class="object" id="obj-3" style="background: rgba(100, 100, 255, .75); top: 120px; left: 10px;"></div>
+
+
+<script type="text/javascript" src="gesture-expressions.js"></script>
+<script type="text/javascript" src="touch-driver.js"></script>
+<script>
+///
+/// Client code
+///
+
+function handleMoveGesture(instance, symbol, touch, matches) {
+  var currentGroups = instance.currentStateSet.map(function(state) { return state.group; });
+  console.log('symbol', symbol, 'matches', matches);
+  console.log('groups', currentGroups);
+
+  if (currentGroups.reduce(function(b, m) { return b && m == 'end'; }, currentGroups.length)) {
+    console.log('the end');
+    return;
+  }
+
+  if (symbol.actionId[1] != '1') return;
+  if (symbol.actionId[0] == 'd') {
+    instance.data = { pos: { x: undefined, y: undefined } };
+  } else if (symbol.actionId[0] == 'm') {
+    var dx = touch.clientX - instance.data.pos.x;
+    var dy = touch.clientY - instance.data.pos.y;
+    touch.target.style.left = (parseFloat(touch.target.style.left) + dx) + 'px';
+    touch.target.style.top = (parseFloat(touch.target.style.top) + dy) + 'px';
+  }
+
+  instance.data.pos.x = touch.clientX;
+  instance.data.pos.y = touch.clientY;
+}
+
+var gestureString = 'd1/obj-./(m1/obj-./|d2|m2|u2)*u1';
+var fsm = compileGesture(gestureString);
+fsm.onTransition = handleMoveGesture;
+activeMachines.push(fsm);
+
+///
+/// Initialisation
+///
+
+registerDriver(document);
+
+</script>
