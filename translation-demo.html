@@ -34,33 +34,29 @@
 /// Client code
 ///
 
-function handleMoveGesture(instance, symbol, touch) {
-  var currentGroups = instance.currentStateSet.map(function(state) { return state.group; });
+function handleGestureStart(instance, symbol, touch) {
+  instance.data = { pos: { x: touch.clientX, y: touch.clientY } };
+}
+
+function handleMoveGesture(instance, symbol, touch, matches) {
   console.log('symbol', symbol);
-  console.log('groups', currentGroups);
+  console.log('matched groups', matches);
 
-  if (currentGroups.reduce(function(b, m) { return b && m == 'end'; }, currentGroups.length)) {
-    console.log('the end');
-    return;
-  }
-
-  if (symbol.actionId[1] != '1') return;
-  if (symbol.actionId[0] == 'd') {
-    instance.data = { pos: { x: undefined, y: undefined } };
-  } else if (symbol.actionId[0] == 'm') {
+  if (matches[0] == 1) {
     var dx = touch.clientX - instance.data.pos.x;
     var dy = touch.clientY - instance.data.pos.y;
     touch.target.style.left = (parseFloat(touch.target.style.left) + dx) + 'px';
     touch.target.style.top = (parseFloat(touch.target.style.top) + dy) + 'px';
-  }
 
-  instance.data.pos.x = touch.clientX;
-  instance.data.pos.y = touch.clientY;
+    instance.data.pos.x = touch.clientX;
+    instance.data.pos.y = touch.clientY;
+  }
 }
 
-var gestureString = 'd1/obj-./(m1/obj-./|d2|m2|u2)*u1';
+var gestureString = 'd1/obj-./((m1/obj-./)|d2|m2|u2)*u1';
 var fsm = compileGesture(gestureString);
 fsm.onTransition = handleMoveGesture;
+fsm.onStart = handleGestureStart;
 activeMachines.push(fsm);
 
 ///
