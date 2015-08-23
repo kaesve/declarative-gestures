@@ -152,7 +152,8 @@ function stateMachineForGroup(fsm, entryState, endState, group) {
   var groupId = group.name || fsm.groupCount;
   fsm.groupCount++;
 
-  var current = entryState;
+  var current = { group: groupId, transitions: { }, compositeStates: [ ] };
+  entryState.compositeStates.push(current);
   for (var repeats = 0; repeats < group.modifier.min; ++repeats) {
     current = group.children.reduce(function(state, e) { 
       var n = { group: groupId, transitions: { }, compositeStates: [ ] };
@@ -235,7 +236,7 @@ function transition(stateSet, symbol, matches) {
         if (new RegExp(regexpDef).test(symbol.targetId)) {
           var newStates = matchTable[regexpDef];
           resultStates = resultStates.concat(newStates);
-          matches.push(symbol.actionId + '/' + regexpDef + '/');
+          matches.push(state.group);
         }
       }
     }
@@ -272,8 +273,8 @@ function activateMachinesByTouch(type, touch) {
         localIdsInUse: [ undefined, true ]
       };
 
-      fsm.onStart(instance, symbol);
-      fsm.onTransition(instance, symbol, touch);
+      fsm.onStart(instance, symbol, touch);
+      fsm.onTransition(instance, symbol, touch, matches);
       console.log('new instance of FSM activated', fsm, type);
 
       runningInstances.push(instance);
@@ -290,7 +291,7 @@ function updateRunningMachines(type, touch) {
     var wasEndState = stateSetHasEndState(instance.currentStateSet);
     instance.currentStateSet = transition(instance.currentStateSet, symbol, matches);
 
-    if (matches.length) instance.fsm.onTransition(instance, symbol, touch);
+    if (matches.length) instance.fsm.onTransition(instance, symbol, touch, matches);
       
     if (instance.currentStateSet.length == 0) {
       console.log('reached end state (' + (wasEndState ? 'success)' : 'failure)'), instance, symbol);
