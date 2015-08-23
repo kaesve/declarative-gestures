@@ -13,8 +13,9 @@ var symbolTypeByEventType = {
 function handleTouch(event) {
   var type = symbolTypeByEventType[event.type];
   Array.prototype.forEach.call(event.changedTouches, function(touch) {
-    updateRunningMachines(type, touch);
-    activateMachinesByTouch(type, touch);
+    var elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    updateRunningMachines(type, touch, elem);
+    activateMachinesByTouch(type, touch, elem);
   });
   event.preventDefault();
   event.stopPropagation();

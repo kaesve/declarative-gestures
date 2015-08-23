@@ -38,7 +38,7 @@ function handleGestureStart(instance, symbol, touch) {
   instance.data = { pos: { x: touch.clientX, y: touch.clientY } };
 }
 
-function handleMoveGesture(instance, symbol, touch, matches) {
+function handleMoveGesture(instance, symbol, touch, element, matches) {
   console.log('symbol', symbol);
   console.log('matched groups', matches);
 
