@@ -249,7 +249,91 @@ describe('The gesture expression parser', function() {
 
   });
 
-  describe('when matching actions', function() {
+  describe('when matching expressions', function() {
+
+    it('recognizes `d2` as a `d`-action with id `2`', function() {
+      var data = { string: 'd2', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.action).toBe('d');
+      expect(token.id).toBe('2');
+    });
+
+    it('recognizes `u1` as a `u`-action with id `1`', function() {
+      var data = { string: 'u1', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.action).toBe('u');
+      expect(token.id).toBe('1');
+    });
+
+    it('recognizes `m333` as a `m`-action with id `333`', function() {
+      var data = { string: 'm333', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.action).toBe('m');
+      expect(token.id).toBe('333');
+    });
+
+    it('recognizes `m3.16` as a `m`-action with id `3` because the id is an integer', function() {
+      var data = { string: 'm3.16', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.action).toBe('m');
+      expect(token.id).toBe('3');
+    });
+
+    it('recognizes `d1/foo*bar/` as an action targeting an element with an id that matches the regular expression `foo*bar`', function() {
+      var data = { string: 'd1/foo*bar/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('foo*bar');
+    });
+
+    it('recognizes `d1` as an action targeting an element with an id that matches the regular expression `.*`', function() {
+      var data = { string: 'd1', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('.*');
+    });
+
+    it('fails to parse `x2` because `x` is not a valid action', function() {
+      var data = { string: 'x2', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `d0` because the id cannot be 0', function() {
+      var data = { string: 'd0', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `doobar` because the action type is not followed by a number', function() {
+      var data = { string: 'doobar', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `d-12` because the action type is not followed by a number', function() {
+      var data = { string: 'd-12', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
 
   });
 
