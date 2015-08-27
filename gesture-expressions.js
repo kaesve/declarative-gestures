@@ -19,6 +19,13 @@ function removeAll(arr, fn) {
 /// Parsing
 ///
 
+var parseErrors = {
+  notNegative: 'negative values are not allowed here',
+  wrongOrder: 'supplied values are in the wrong order',
+  notInteger: 'supplied value must be an integer',
+  incorrectFormat: 'supplied data was not recognized'
+};
+
 function formatModifier(modifier) { return '{' + modifier.min + ',' + modifier.max + '}'; }
 
 function parseGestures(gestureString) {
@@ -34,6 +41,8 @@ function parseGestures(gestureString) {
 * This function moves `data.pos` to after the parsed expression (including any modifiers).
 */
 function parseExpression(data) {
+  if (data.hasError) return;
+
   var options = [];
   data.pos--;
   do {
@@ -56,6 +65,8 @@ function parseExpression(data) {
 * `data.string`.
 */
 function parseGroupOrAction(data) {
+  if (data.hasError) return;
+
   var c = data.string[data.pos];
   if (c == undefined) return; // reached end of string
 
@@ -75,6 +86,8 @@ function parseGroupOrAction(data) {
 * This function moves data.pos to after the action and any modifier applied to it.
 */
 function parseAction(data) {
+  if (data.hasError) return;
+
   var actionPattern = /([dmu])(\d+)(?:\/([^\/]*)\/)?/g;
   actionPattern.lastIndex = data.pos;
   var actionMatch = actionPattern.exec(data.string);
@@ -90,6 +103,8 @@ function parseAction(data) {
   };
 }
 function parseGroup(data) {
+  if (data.hasError) return;
+  
   var children = []
   data.pos++; // skip '(' 
   while (data.string[data.pos] != ')') children.push(parseExpression(data));
@@ -103,6 +118,8 @@ function parseGroup(data) {
   };
 }
 function parseModifier(data) {
+  if (data.hasError) return;
+  
   var modifier;
   switch(data.string[data.pos]) {
     case '+': modifier = { min: 1, max: Infinity }; break;
@@ -110,17 +127,33 @@ function parseModifier(data) {
     case '?': modifier = { min: 0, max: 1 }; break;
     case '{': 
       // not sure if this is efficient. Depends on substr implementation
-      var delimData = /^\{(\d+),?(\d+)?\}/.exec(data.string.substr(data.pos));
-      data.pos += delimData[0].length - 1; // -1 to account for the data.pos++ at the end
-      modifier = {
-        min: +delimData[1],
-        max: +delimData[2] || +delimData[1]
-      };
+      var delimData = /^\{(\d+)(?:,(\d+))?\}/.exec(data.string.substr(data.pos));
+      if (delimData) {
+        modifier = {
+          min: +delimData[1],
+          max: +delimData[2] || +delimData[1]
+        };
+
+        if (modifier.min < 0)                              { data.hasError = true; data.errorMessage = parseErrors.notNegative; }
+        else if (modifier.max < modifier.min)              { data.hasError = true; data.errorMessage = parseErrors.wrongOrder; }
+        else if (modifier.min != Math.floor(modifier.min)) { data.hasError = true; data.errorMessage = parseErrors.notInteger; }
+        else if (modifier.max != Math.floor(modifier.max)) { data.hasError = true; data.errorMessage = parseErrors.notInteger; }
+
+        if (!data.hasError)
+          data.pos += delimData[0].length - 1; // -1 to account for the data.pos++ at the end
+      } else {
+        data.hasError = true;
+        data.errorMessage = parseErrors.incorrectFormat;
+      }
     break;
     default: return { min: 1, max: 1 };
   }
-  data.pos++;
-  return modifier;
+
+  if (data.hasError) return;
+  else {
+    data.pos++;
+    return modifier; 
+  }
 }
 
 
