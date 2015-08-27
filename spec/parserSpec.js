@@ -88,34 +88,31 @@ describe('The gesture expression parser', function() {
       expect(modifier.max).toBe(n);
     });
 
-    it('eats `{n}` after parsing it', function() {
+    it('eats `{1234}` after parsing it', function() {
       var data = { string: '{1234}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
       expect(data.pos).toBe(6);
     });
 
-    it('fails on `{n}` when n is negative', function() {
-      var n = -12;
-      var data = { string: '{' + n + '}', pos: 0, hasError: false };
+    it('fails on `{-12}` because `-12` is negative', function() {
+      var data = { string: '{-12}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
       expect(modifier).toBe(undefined);
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{n}` when n is not an integer', function() {
-      var n = 13.3;
-      var data = { string: '{' + n + '}', pos: 0, hasError: false };
+    it('fails on `{13.3}` because `13.3` is not an integer', function() {
+      var data = { string: '{13.3}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
       expect(modifier).toBe(undefined);
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{n}` when n is not (just) a number', function() {
-      var n = '12 ';
-      var data = { string: '{' + n + '}', pos: 0, hasError: false };
+    it('fails on `{12 }` because `12 ` is not (just) a number', function() {
+      var data = { string: '{12 }', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
       expect(modifier).toBe(undefined);
@@ -164,7 +161,7 @@ describe('The gesture expression parser', function() {
       expect(data.pos).toBe(5);
     });
 
-    it('fails on `{7,2}` because 7 > 2', function() {
+    it('fails on `{7,2}` because `7 > 2`', function() {
       var data = { string: '{7,2}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
@@ -172,7 +169,7 @@ describe('The gesture expression parser', function() {
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{-10,10}` because -10 is negative', function() {
+    it('fails on `{-10,10}` because `-10` is negative', function() {
       var data = { string: '{-10,10}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
@@ -180,7 +177,7 @@ describe('The gesture expression parser', function() {
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{7.3,2}` because 7.3 is not an integer', function() {
+    it('fails on `{7.3,2}` because `7.3` is not an integer', function() {
       var data = { string: '{7.3,2}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
@@ -188,7 +185,7 @@ describe('The gesture expression parser', function() {
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{7,2.0}` because 2.0 is not an integer', function() {
+    it('fails on `{7,2.0}` because `2.0` is not an integer', function() {
       var data = { string: '{7,2.0}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
@@ -212,19 +209,9 @@ describe('The gesture expression parser', function() {
       expect(data.hasError).toBe(true);
     });
 
-    it('fails on `{7,2.0}` because 2.0 is not an integer', function() {
+    it('fails on `{7,2.0}` because `2.0` is not an integer', function() {
       var n = 7;
       var m = 2.0;
-      var data = { string: '{' + n + ',' + m + '}', pos: 0, hasError: false };
-      var modifier = parseModifier(data);
-
-      expect(modifier).toBe(undefined);
-      expect(data.hasError).toBe(true);
-    });
-
-    it('fails on {7,2} because 7 > 2', function() {
-      var n = 7;
-      var m = 2;
       var data = { string: '{' + n + ',' + m + '}', pos: 0, hasError: false };
       var modifier = parseModifier(data);
 
@@ -259,6 +246,10 @@ describe('The gesture expression parser', function() {
 
       expect(data.pos).toBe(0);
     });
+
+  });
+
+  describe('when matching actions', function() {
 
   });
 
