@@ -295,12 +295,66 @@ describe('The gesture expression parser', function() {
       expect(token.target).toBe('foo*bar');
     });
 
+    it('recognizes `d1/\\/foobar/` as an action targeting an element with the id `/foobar`, because the second `/` is escaped', function() {
+      var data = { string: 'd1/\\/foobar/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('\\/foobar');
+      expect('/foobar').toMatch(token.target);
+    });
+
+    it('recognizes `d1/\\\\/foobar/` as an action targeting an element with the id `\\\\`, because the second `/` is not escaped', function() {
+      var data = { string: 'd1/\\\\/foobar/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('\\\\');
+      expect('\/foobar').not.toMatch(token.target);
+      expect('\\\\').toMatch(token.target);
+    });
+
+    it('recognizes `d1/\\\\\\/foobar/` as an action targeting an element with the id `\\\\/foobar`, because the second `/` is escaped', function() {
+      var data = { string: 'd1/\\\\\\/foobar/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('\\\\\\\/foobar');
+      expect('\\\\/foobar').toMatch(token.target);
+    });
+
+    it('recognizes `d1/\\\\\\\\/foobar/` as an action targeting an element with the id `\\\\\\`, because the second `/` is not escaped', function() {
+      var data = { string: 'd1/\\\\\\\\/foobar/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.target).toBe('\\\\\\\\');
+      expect('\\\\\\').toMatch(token.target);
+    });
+
     it('recognizes `d1` as an action targeting an element with an id that matches the regular expression `.*`', function() {
       var data = { string: 'd1', pos: 0, hasError: false };
       var token = parseAction(data);
 
       expect(data.hasError).toBe(false);
       expect(token.target).toBe('.*');
+    });
+
+    it('eats `d1/foobar/` after parsing it', function() {
+      var data = { string: 'd1/foobar/m2/nextToken/', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(data.pos).toBe(10);
+    });
+
+    it('recognizes the modifier `{0,10}` in `d1/foo/{0,10}`', function() {
+      var data = { string: 'd1/foo/{0,10}', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.modifier.min).toBe(0);
+      expect(token.modifier.max).toBe(10);
     });
 
     it('fails to parse `x2` because `x` is not a valid action', function() {
@@ -321,6 +375,14 @@ describe('The gesture expression parser', function() {
 
     it('fails to parse `doobar` because the action type is not followed by a number', function() {
       var data = { string: 'doobar', pos: 0, hasError: false };
+      var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `d/foobar/` because the action type is not followed by a number', function() {
+      var data = { string: 'd/foobar/', pos: 0, hasError: false };
       var token = parseAction(data);
 
       expect(data.hasError).toBe(true);

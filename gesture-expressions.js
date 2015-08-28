@@ -21,6 +21,7 @@ function removeAll(arr, fn) {
 
 var parseErrors = {
   notNegative: 'negative values are not allowed here',
+  notPositive: 'value must be positive',
   wrongOrder: 'supplied values are in the wrong order',
   notInteger: 'supplied value must be an integer',
   incorrectFormat: 'supplied data was not recognized'
@@ -88,19 +89,31 @@ function parseGroupOrAction(data) {
 function parseAction(data) {
   if (data.hasError) return;
 
-  var actionPattern = /([dmu])(\d+)(?:\/([^\/]*)\/)?/g;
+  var actionPattern = /([dmu])(\d+)(?:\/((?:[^\/\\]|(?:\\\\)*\\\/|\\[^\/])*)\/)?/g;
   actionPattern.lastIndex = data.pos;
   var actionMatch = actionPattern.exec(data.string);
-  data.pos = actionPattern.lastIndex;
-  var modifier = parseModifier(data);
-  return {
-    type: 'action',
-    action: actionMatch[1],
-    id: actionMatch[2],
-    target: actionMatch[3] || '.*',
-    modifier: modifier,
-    string: actionMatch[0] + formatModifier(modifier)
-  };
+  if (actionMatch) {
+    if (actionMatch[2] == '0') {
+      data.hasError = true;
+      data.errorMessage = parseErrors.notPositive;
+      return;
+    } else {
+      data.pos = actionPattern.lastIndex;
+      var modifier = parseModifier(data);
+      return {
+        type: 'action',
+        action: actionMatch[1],
+        id: actionMatch[2],
+        target: actionMatch[3] || '.*',
+        modifier: modifier,
+        string: actionMatch[0] + formatModifier(modifier)
+      };  
+    }
+  } else {
+    data.hasError = true;
+    data.errorMessage = parseErrors.incorrectFormat;
+    return;
+  }
 }
 function parseGroup(data) {
   if (data.hasError) return;
