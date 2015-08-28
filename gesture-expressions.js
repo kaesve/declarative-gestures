@@ -24,7 +24,9 @@ var parseErrors = {
   notPositive: 'value must be positive',
   wrongOrder: 'supplied values are in the wrong order',
   notInteger: 'supplied value must be an integer',
-  incorrectFormat: 'supplied data was not recognized'
+  incorrectFormat: 'supplied data was not recognized',
+  expectedOpneningBracket: 'opening bracket expected',
+  expectedClosingBracket: 'closing bracket expected'
 };
 
 function formatModifier(modifier) { return '{' + modifier.min + ',' + modifier.max + '}'; }
@@ -89,16 +91,16 @@ function parseGroupOrAction(data) {
 function parseAction(data) {
   if (data.hasError) return;
 
-  var actionPattern = /([dmu])(\d+)(?:\/((?:[^\/\\]|(?:\\\\)*\\\/|\\[^\/])*)\/)?/g;
-  actionPattern.lastIndex = data.pos;
-  var actionMatch = actionPattern.exec(data.string);
+  var actionPattern = /^([dmu])(\d+)(?:\/((?:[^\/\\]|(?:\\\\)*\\\/|\\[^\/])*)\/)?/g;
+  var actionString = data.string.substr(data.pos);
+  var actionMatch = actionPattern.exec(actionString);
   if (actionMatch) {
     if (actionMatch[2] == '0') {
       data.hasError = true;
       data.errorMessage = parseErrors.notPositive;
       return;
     } else {
-      data.pos = actionPattern.lastIndex;
+      data.pos += actionPattern.lastIndex;
       var modifier = parseModifier(data);
       return {
         type: 'action',
@@ -117,18 +119,32 @@ function parseAction(data) {
 }
 function parseGroup(data) {
   if (data.hasError) return;
+  if (data.string[data.pos] != '(') {
+    data.hasError = true;
+    data.errorMessage = parseErrors.expectedOpneningBracket;
+  }
   
-  var children = []
+  var children = [];
+  var c;
   data.pos++; // skip '(' 
-  while (data.string[data.pos] != ')') children.push(parseExpression(data));
-  data.pos++; // skip ')'
-  var modifier = parseModifier(data);
-  return {
-    type: 'group',
-    children: children,
-    modifier: modifier,
-    string: '(' + children.map(function(c) { return c.string; }).join('') + ')' + formatModifier(modifier)
-  };
+  while (!data.hasError && (c = data.string[data.pos]) && c != ')') 
+    children.push(parseExpression(data));
+  
+  if (data.hasError) return;
+  else if (c != ')') {
+    data.hasError = true;
+    data.errorMessage = parseErrors.expectedClosingBracket;
+    return;
+  } else {
+    data.pos++; // skip ')'
+    var modifier = parseModifier(data);
+    return {
+      type: 'group',
+      children: children,
+      modifier: modifier,
+      string: '(' + children.map(function(c) { return c.string; }).join('') + ')' + formatModifier(modifier)
+    }; 
+  }
 }
 function parseModifier(data) {
   if (data.hasError) return;

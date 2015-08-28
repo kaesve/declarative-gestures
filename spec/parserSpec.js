@@ -249,7 +249,7 @@ describe('The gesture expression parser', function() {
 
   });
 
-  describe('when matching expressions', function() {
+  describe('when matching actions', function() {
 
     it('recognizes `d2` as a `d`-action with id `2`', function() {
       var data = { string: 'd2', pos: 0, hasError: false };
@@ -392,6 +392,79 @@ describe('The gesture expression parser', function() {
     it('fails to parse `d-12` because the action type is not followed by a number', function() {
       var data = { string: 'd-12', pos: 0, hasError: false };
       var token = parseAction(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+  });
+
+  describe('when matching groups', function() {
+
+    it('recognizes `(d1d2)` as a group with two actions as children', function() {
+      var data = { string: '(d1d2)', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.children.length).toBe(2);
+      expect(token.children[0].type).toBe('action');
+      expect(token.children[1].type).toBe('action');
+    });
+
+    it('recognizes `(d1(d2))` as a group with two children; an action and another group', function() {
+      var data = { string: '(d1(d2))', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.children.length).toBe(2);
+      expect(token.children[0].type).toBe('action');
+      expect(token.children[1].type).toBe('group');
+    });
+
+    it('eats `(d1(m1*)u1)` after parsing it', function() {
+      var data = { string: '(d1(m1*)u1)', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(false);
+      expect(data.pos).toBe(11);
+    });
+
+    it('recognizes the modifier in `(d1(m1*)u1)+` and applies it to the group expression', function() {
+      var data = { string: '(d1(m1*)u1)+', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(false);
+      expect(token.modifier.min).toBe(1);
+      expect(token.modifier.max).toBe(Infinity);
+    });
+
+    it('fails to parse `d1d2` as a group because it does not start with `(`', function() {
+      var data = { string: 'd1d2', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `( d1d2)` because the inner expression ` d1d2` is not a valid expression', function() {
+      var data = { string: '( d1d2)', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `(d1d2` because not all opening brackets are closed', function() {
+      var data = { string: '(d1d2', pos: 0, hasError: false };
+      var token = parseGroup(data);
+
+      expect(data.hasError).toBe(true);
+      expect(token).toBe(undefined);
+    });
+
+    it('fails to parse `(d1(d2)` because not all opening brackets are closed', function() {
+      var data = { string: '(d1(d2)', pos: 0, hasError: false };
+      var token = parseGroup(data);
 
       expect(data.hasError).toBe(true);
       expect(token).toBe(undefined);
